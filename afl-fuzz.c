@@ -5429,11 +5429,20 @@ int post(char *host, int portno, u8 **out_buf, s32 *temp_len) {
 
   /* create the socket */
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd < 0) error("ERROR opening socket");
+  if (sockfd < 0) {
+	  free(body);
+	  free(message);
+	  return 0;
+  }
 
   /* lookup the ip address */
   server = gethostbyname(host);
-  if (server == NULL) error("ERROR, no such host");
+  if (server == NULL) {
+	  close(sockfd);
+	  free(body);
+	  free(message);
+	  return 0; 
+  }
 
   /* fill in the structure */
   memset(&serv_addr,0,sizeof(serv_addr));
@@ -5442,9 +5451,13 @@ int post(char *host, int portno, u8 **out_buf, s32 *temp_len) {
   memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
 
   /* connect the socket */
-  if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0)
-    error("ERROR connecting");
-
+  if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) {
+	  close(sockfd);
+	  free(body);
+	  free(message);
+	  return 0;
+  }
+	
   /* send the request */
   total = strlen(message);
   sent = 0;
@@ -5463,15 +5476,20 @@ int post(char *host, int portno, u8 **out_buf, s32 *temp_len) {
   received = 0;
   do {
     bytes = read(sockfd,response+received,total-received);
-    if (bytes < 0)
-      error("ERROR reading response from socket");
+    if (bytes < 0) {
+      close(sockfd);
+      free(body);
+      free(message);
+      free(response);
+      return 0;
+	}
+	  
     if (bytes == 0)
       break;
     received+=bytes;
   } while (received < total);
 
-  if (received == total){
-    error("ERROR storing complete response from socket");
+  if (received == total) {
     close(sockfd);
     free(body);
     free(message);
